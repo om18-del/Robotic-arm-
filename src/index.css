@@ -1,0 +1,732 @@
+:root {
+  --bg: #0b0e14;
+  --bg-2: #0d1119;
+  --panel: #11161f;
+  --panel-2: #161c29;
+  --border: #222a3a;
+  --text: #e8edf5;
+  --muted: #9aa6bf;
+  --accent: #ff8c42;
+  --accent-dim: rgba(255, 140, 66, 0.15);
+  --orange: #ff8c42;
+  --orange-dark: #cc6a28;
+  --orange-light: #ffb07a;
+  --danger: #ff7a7a;
+  --font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --eq-font-size: 19px;
+  --eq-line-height: 1.5;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Main split */
+.main-grid {
+  flex: 1;
+  display: grid;
+  /* minmax(0, …) stops the WebGL canvas's intrinsic width from forcing the
+     left column wider than half the window and clipping the right panel. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0;
+  min-height: 0;
+  min-width: 0;
+}
+@media (max-width: 900px) {
+  .main-grid {
+    grid-template-columns: 1fr;
+    /* Give the 3D view a real height when the panes stack; "auto" collapsed it
+       to a 150 px sliver on phones and narrow windows. */
+    grid-template-rows: minmax(300px, 46vh) 1fr;
+    overflow: hidden;
+  }
+  .left-panel {
+    min-height: 0;
+  }
+  .right-panel {
+    padding: 14px;
+    gap: 14px;
+  }
+}.left-panel {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  min-height: 0;
+  min-width: 0;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.right-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 18px 20px 24px 20px;
+  gap: 16px;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  justify-content: flex-start;
+  overscroll-behavior: contain;
+}
+/* The gain sliders are the interactive part, so they sit at the top of the
+   column; the long equation list scrolls underneath them and the generated
+   Python script stays last. */
+.right-panel > .controls-card { order: 1; }
+.right-panel > .mode-graph { order: 2; }
+.right-panel > .math-panel { order: 3; }
+.right-panel > .python-panel { order: 4; }
+
+/* 3D scene host — fills the left panel; the R3F Canvas sizes itself to it. */
+.scene-host {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  background: var(--bg-2);
+  overflow: hidden;
+}
+.scene-host canvas {
+  display: block;
+  max-width: 100%;
+}
+
+/* Shared overlay (θ / θ*) for both the 3D scene and the 2D fallback. */
+.scene-overlay {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+  z-index: 2;
+}
+.canvas-label {
+  font-family: var(--mono);
+  font-size: 15px;
+  color: var(--text);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}
+.canvas-target-label {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--orange);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}
+.scene-hint {
+  position: absolute;
+  bottom: 12px;
+  left: 16px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.34);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Math panel */
+.math-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: none;
+  padding-bottom: 6px;
+}
+.katex-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.katex-block {
+  font-size: var(--eq-font-size);
+  line-height: var(--eq-line-height);
+  color: var(--text);
+  padding: 6px 0;
+  min-height: 1.5em;
+  /* Wide matrices stay on one line and scroll instead of overflowing. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+.katex-block .katex {
+  font-size: 1.05em;
+}
+.katex-block .katex .html-id {
+  color: var(--accent);
+  font-weight: 600;
+  font-family: var(--mono);
+}
+.katex-block .katex .html-id.flash {
+  background: var(--accent);
+  color: #0b0e14;
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
+/* One-line explanation under each equation: why the DE matters. */
+.eq-caption {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--muted);
+  margin: -2px 0 10px 0;
+  padding-left: 10px;
+  border-left: 2px solid rgba(255, 140, 66, 0.35);
+  max-width: 62ch;
+}
+.panel-note {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* Regime line inside math panel */
+.regime-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 0 4px 0;
+}
+.regime-label {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.regime-value {
+  font-size: 16px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.regime-zeta {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--muted);
+}
+.regime-underdamped { color: var(--accent); }
+.regime-critically-damped { color: #5ad1a0; }
+.regime-overdamped { color: #e8a45a; }
+.regime-unstable { color: var(--danger); }
+
+/* Controls card (sliders live here, Python panel sits below it) */
+.controls-card {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding: 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.controls-head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.slider-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin-top: -2px;
+}
+.preset-row {
+  display: flex;
+  gap: 6px;
+}
+.preset-btn {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 9px 6px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.preset-btn:hover {
+  background: #1f2738;
+  border-color: var(--orange);
+}
+.preset-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.preset-btn.active {
+  background: var(--orange);
+  color: #0b0e14;
+  border-color: var(--orange);
+  font-weight: 600;
+}
+.preset-btn.unstable {
+  border-color: rgba(255, 122, 122, 0.4);
+  color: var(--danger);
+}
+.preset-btn.unstable.active {
+  background: var(--danger);
+  color: #0b0e14;
+  border-color: var(--danger);
+}
+.preset-btn.unstable:hover {
+  background: rgba(255, 122, 122, 0.1);
+  border-color: var(--danger);
+}
+
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.slider-label {
+  min-width: 80px;
+  font-size: 14px;
+  color: var(--text);
+}
+.slider-value {
+  margin-left: auto;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 13px;
+  min-width: 65px;
+  text-align: right;
+}
+.slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--panel-2);
+  outline: none;
+  cursor: pointer;
+}
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--orange);
+  border: 2px solid #0b0e14;
+  box-shadow: 0 0 0 1px var(--orange);
+  cursor: pointer;
+}
+.slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--orange);
+  border: 2px solid #0b0e14;
+  cursor: pointer;
+}
+.slider:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.action-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.icon-btn {
+  flex: 1;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.icon-btn:hover {
+  background: #1f2738;
+  border-color: var(--orange);
+}
+.icon-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.icon-btn.highlight {
+  background: var(--orange);
+  color: #0b0e14;
+  border-color: var(--orange);
+  font-weight: 600;
+}
+.icon-btn.highlight:hover {
+  filter: brightness(1.05);
+}
+
+.options-row {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.options-row:not(.open) {
+  display: none;
+}
+.options-toggle {
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.options-toggle:hover { color: var(--text); }
+.options-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.options-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0 0 0;
+}
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text);
+}
+.toggle-row input {
+  accent-color: var(--orange);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+.toggle-label { color: var(--text); }
+
+/* KaTeX overrides for dark theme */
+.katex { font-size: 1em; }
+.katex .mathnormal { font-style: italic; }
+.katex .mathit { font-style: italic; }
+.katex .mathbf { font-weight: bold; }
+.katex .colored { color: var(--accent); }
+
+button { font-family: inherit; }
+
+/* scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #2f3a50; }
+
+/* ------------------------------------------------------------ readouts */
+.readout-strip {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border-top: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+.readout {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  background: var(--panel);
+  min-width: 0;
+}
+.readout-key {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.readout-val {
+  font-family: var(--mono);
+  font-size: 13.5px;
+  color: var(--text);
+}
+.readout-val.accent { color: var(--accent); }
+.readout-val.bad { color: var(--danger); }
+
+.canvas-error-label {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: rgba(232, 237, 245, 0.55);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.scene-badge-stack {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+  z-index: 2;
+  pointer-events: none;
+}
+.scene-badge {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(11, 14, 20, 0.74);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(4px);
+}
+.scene-badge.muted { color: var(--muted); text-transform: none; letter-spacing: 0.02em; }
+
+/* -------------------------------------------------------- math narrative */
+.math-panel-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.panel-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+.panel-lede {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--muted);
+  max-width: 72ch;
+}
+.verdict {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  font-size: 12.5px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+}
+.verdict-ok {
+  border-color: rgba(90, 209, 160, 0.35);
+  background: rgba(90, 209, 160, 0.07);
+  color: #c4ecdc;
+}
+.verdict-bad {
+  border-color: rgba(255, 122, 122, 0.38);
+  background: rgba(255, 122, 122, 0.08);
+  color: #ffd0d0;
+}
+.verdict-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 5px;
+  background: currentColor;
+}
+.param-note {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.panel-fineprint {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: rgba(154, 166, 191, 0.78);
+  border-top: 1px dashed var(--border);
+  padding-top: 8px;
+}
+
+/* ---------------------------------------------------- mode comparison graph */
+.mode-graph {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  border-radius: 14px;
+  padding: 14px 14px 12px;
+  min-width: 0;
+}
+
+.mode-graph-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mode-graph-lede {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.mode-plot-host {
+  position: relative;
+  height: 210px;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.mode-plot-host canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.mode-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.mode-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mode-legend i {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.mode-legend .sel {
+  font-weight: 650;
+}
+
+.mode-legend .dim {
+  opacity: 0.5;
+}
+
+/* ------------------------------------------------------- python panel */
+.python-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.python-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.python-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+.python-btn {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.python-btn:hover {
+  background: #1f2738;
+  border-color: var(--accent);
+}
+.python-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.python-lede {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.python-code {
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  background: #0a0d13;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: #b8d7ff;
+  white-space: pre;
+  tab-size: 4;
+}
+.python-code:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* Narrow layouts: keep these last so they win over the base rules above. */
+@media (max-width: 900px) {
+  .readout-strip {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .katex-block {
+    font-size: 15px;
+  }
+  .eq-caption {
+    font-size: 12px;
+  }
+  .panel-lede,
+  .python-lede {
+    font-size: 12px;
+  }
+  .python-code {
+    font-size: 11px;
+    max-height: 240px;
+  }
+}
+
+/* reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
